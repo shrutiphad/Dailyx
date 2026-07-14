@@ -1,0 +1,23 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+.next/
+out/
+.turbo/
+
+# env & secrets — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+
+# prisma
+packages/db/prisma/*.db
+
+# misc
+.DS_Store
+*.log
+coverage/

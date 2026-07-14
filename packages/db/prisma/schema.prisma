@@ -1,0 +1,224 @@
+// DailyX data model.
+//
+// Tenancy rule: EVERY tenant-owned row carries an `accountId`. The API only ever
+// queries with `where: { accountId: <caller's account> }`, so account A can never
+// read or mutate account B's rows even if it guesses an id. See ARCHITECTURE.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy + auth
+// ---------------------------------------------------------------------------
+
+model Account {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  contacts        Contact[]
+  audiences       Audience[]
+  campaigns       Campaign[]
+  customFieldDefs CustomFieldDef[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  accountId    String
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+
+  @@index([accountId])
+}
+
+// ---------------------------------------------------------------------------
+// Contacts (+ user-defined custom fields)
+// ---------------------------------------------------------------------------
+
+// Per-account registry of custom field keys so the UI can render inputs and
+// audiences can filter on them. The values themselves live in Contact.customFields.
+model CustomFieldDef {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  key       String   // machine key, e.g. "plan_tier"
+  label     String   // human label, e.g. "Plan tier"
+  createdAt DateTime @default(now())
+
+  @@unique([accountId, key])
+  @@index([accountId])
+}
+
+model Contact {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  name  String
+  email String
+  phone String?
+  city  String?
+  tags  String[] @default([])
+
+  // Normalized dedup keys (lowercased email / digits-only phone). Nullable phoneKey
+  // so a contact without a phone doesn't collide with every other phone-less contact.
+  emailKey String
+  phoneKey String?
+
+  // Arbitrary user-defined fields: { "plan_tier": "pro", "signup_source": "web" }
+  customFields Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaignRecipients CampaignRecipient[]
+
+  // Airtight dedup: email unique per account; phone unique per account when present.
+  @@unique([accountId, emailKey])
+  @@unique([accountId, phoneKey])
+  @@index([accountId])
+  @@index([accountId, city])
+}
+
+// ---------------------------------------------------------------------------
+// Audiences (saved filters)
+// ---------------------------------------------------------------------------
+
+// An audience is a *saved filter*, not a frozen membership list. Members are
+// resolved by applying `filter` against the account's contacts at view/send time,
+// so a newly-imported contact that matches shows up automatically.
+model Audience {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name      String
+  // FilterGroup JSON: { match: "all"|"any", rules: [{ field, op, value }] }
+  filter    Json     @default("{\"match\":\"all\",\"rules\":[]}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns Campaign[]
+
+  @@index([accountId])
+}
+
+// ---------------------------------------------------------------------------
+// Campaigns + recipients + events
+// ---------------------------------------------------------------------------
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  QUEUED
+  SENDING
+  SENT
+  CANCELED
+  FAILED
+}
+
+enum RecipientSource {
+  AUDIENCE
+  TAG
+  MANUAL
+}
+
+model Campaign {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  name    String
+  subject String
+  body    String         @db.Text
+  status  CampaignStatus @default(DRAFT)
+
+  // How recipients were chosen.
+  source     RecipientSource @default(AUDIENCE)
+  audienceId String?
+  audience   Audience?       @relation(fields: [audienceId], references: [id], onDelete: SetNull)
+  tag        String?
+  // For MANUAL: the raw entries the user pasted (emails/phones), kept for audit.
+  manualEntries String[] @default([])
+
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  // BullMQ job id for a scheduled send, so we can cancel/reschedule it.
+  jobId       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipients CampaignRecipient[]
+
+  @@index([accountId])
+  @@index([status, scheduledAt])
+}
+
+enum RecipientStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  FAILED
+  BOUNCED
+}
+
+model CampaignRecipient {
+  id         String   @id @default(cuid())
+  accountId  String   // denormalized for cheap tenant-scoped analytics queries
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Snapshot so a later contact edit/delete doesn't rewrite history.
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  email     String
+  name      String?
+
+  status            RecipientStatus @default(PENDING)
+  providerMessageId String?         // Mailgun Message-Id, ties webhook events back
+  error             String?
+
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  openedAt    DateTime? // first open
+  openCount   Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events EmailEvent[]
+
+  // One row per email per campaign — avoids double-adding the same recipient.
+  @@unique([campaignId, email])
+  @@index([accountId])
+  @@index([campaignId, status])
+  @@index([providerMessageId])
+}
+
+// Append-only log of provider webhook events. `providerEventId` is unique so a
+// re-delivered webhook is idempotent (we never double-count an open).
+model EmailEvent {
+  id              String            @id @default(cuid())
+  accountId       String
+  recipientId     String
+  recipient       CampaignRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  type            String // "delivered" | "opened" | "failed" | ...
+  providerEventId String?           @unique
+  payload         Json
+  createdAt       DateTime          @default(now())
+
+  @@index([recipientId])
+  @@index([accountId])
+}

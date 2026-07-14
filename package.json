@@ -1,0 +1,26 @@
+{
+  "name": "dailyx",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DailyX — a cut-down Mailchimp: contacts, audiences, campaigns, scheduled sends and live analytics.",
+  "packageManager": "pnpm@9.6.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @dailyx/db generate",
+    "db:migrate": "pnpm --filter @dailyx/db migrate",
+    "db:push": "pnpm --filter @dailyx/db push",
+    "db:seed": "pnpm --filter @dailyx/db seed",
+    "dev:api": "pnpm --filter @dailyx/api dev",
+    "dev:worker": "pnpm --filter @dailyx/api dev:worker",
+    "dev:web": "pnpm --filter @dailyx/web dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.9",
+    "typescript": "^5.5.3",
+    "prettier": "^3.3.2"
+  }
+}

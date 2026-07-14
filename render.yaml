@@ -1,0 +1,59 @@
+# Render blueprint. Deploys the API (web) + worker (background) + Postgres + Redis.
+# The Next.js frontend deploys separately on Vercel (see README).
+databases:
+  - name: dailyx-db
+    plan: free
+
+services:
+  - type: redis
+    name: dailyx-redis
+    plan: free
+    ipAllowList: []
+
+  - type: web
+    name: dailyx-api
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/db migrate:deploy && pnpm --filter @dailyx/api build
+    startCommand: pnpm --filter @dailyx/api start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase: { name: dailyx-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { name: dailyx-redis, type: redis, property: connectionString }
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WEB_ORIGIN
+        sync: false   # set to your Vercel URL
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: MAILGUN_FROM
+        sync: false
+      - key: MAILGUN_WEBHOOK_SIGNING_KEY
+        sync: false
+
+  - type: worker
+    name: dailyx-worker
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/api build
+    startCommand: pnpm --filter @dailyx/api start:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase: { name: dailyx-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { name: dailyx-redis, type: redis, property: connectionString }
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: MAILGUN_FROM
+        sync: false

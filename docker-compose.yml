@@ -1,0 +1,31 @@
+# Local Postgres + Redis for development.
+# Usage: docker compose up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dailyx
+      POSTGRES_PASSWORD: dailyx
+      POSTGRES_DB: dailyx
+    ports:
+      - "5432:5432"
+    volumes:
+      - dailyx_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dailyx"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - dailyx_redis:/data
+
+volumes:
+  dailyx_pg:
+  dailyx_redis:
