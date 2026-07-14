@@ -234,10 +234,14 @@ Tokens live in `apps/web/tailwind.config.ts` and component classes in
       zod/Prisma errors to clean 4xx.
 - [x] Passwords bcrypt-hashed; JWT expiry set; httpOnly cookie + bearer.
 - [x] Send is retry-safe (only PENDING recipients) — no double sends.
+- [x] Unit tests (`pnpm test`, vitest, 43 tests) lock down the fiddly pure logic:
+      CSV dedup counts against the real sample file, normalization/dedup keys, the
+      filter→Prisma compiler, analytics math, webhook transitions + idempotency,
+      and Mailgun signature verification. No services required, so it runs in CI.
 - [ ] **Follow-ups if I had more time**: per-recipient send rate limiting for
       large lists (batch + `Queue` fan-out per recipient), attachments (Mailgun
-      multipart), audit log of who sent what, and integration tests around the
-      isolation property and the CSV dedup counts.
+      multipart), audit log of who sent what, and **integration** tests around the
+      isolation property (need a live Postgres; the pure logic is already covered).
 
 ---
 

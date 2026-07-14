@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { prisma } from '@dailyx/db';
-import { verifyWebhookSignature } from '../lib/mailgun';
+import { prisma, type RecipientStatus } from '@dailyx/db';
+import { verifyWebhookSignature, normalizeMessageId } from '../lib/mailgun';
+import { recipientPatchForEvent } from '../services/emailEvents';
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.post('/mailgun', async (req, res) => {
   }
 
   const event: string = eventData.event; // "delivered" | "opened" | "failed" ...
-  const messageId: string | undefined = eventData.message?.headers?.['message-id'];
+  const messageId = normalizeMessageId(eventData.message?.headers?.['message-id']);
   const providerEventId: string | undefined = eventData.id;
 
   if (!messageId) return res.status(200).json({ ok: true, ignored: 'no message id' });
@@ -42,28 +43,24 @@ router.post('/mailgun', async (req, res) => {
         },
       });
 
-      if (event === 'delivered') {
+      const patch = recipientPatchForEvent(
+        event,
+        {
+          status: recipient.status,
+          deliveredAt: recipient.deliveredAt,
+          openedAt: recipient.openedAt,
+        },
+        new Date(),
+        eventData.reason,
+      );
+      if (patch) {
+        const { incrementOpenCount, ...fields } = patch;
         await tx.campaignRecipient.update({
           where: { id: recipient.id },
           data: {
-            deliveredAt: recipient.deliveredAt ?? new Date(),
-            // don't downgrade an already-OPENED recipient
-            status: recipient.status === 'OPENED' ? 'OPENED' : 'DELIVERED',
+            ...(fields as { status?: RecipientStatus; deliveredAt?: Date; openedAt?: Date; error?: string }),
+            ...(incrementOpenCount ? { openCount: { increment: 1 } } : {}),
           },
-        });
-      } else if (event === 'opened') {
-        await tx.campaignRecipient.update({
-          where: { id: recipient.id },
-          data: {
-            status: 'OPENED',
-            openedAt: recipient.openedAt ?? new Date(),
-            openCount: { increment: 1 },
-          },
-        });
-      } else if (event === 'failed' || event === 'permanent_fail') {
-        await tx.campaignRecipient.update({
-          where: { id: recipient.id },
-          data: { status: 'BOUNCED', error: eventData.reason ?? 'failed' },
         });
       }
     });

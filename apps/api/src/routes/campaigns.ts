@@ -5,6 +5,7 @@ import { requireAuth, accountId } from '../middleware/auth';
 import { HttpError } from '../middleware/error';
 import { matchManualEntries } from '../services/recipients';
 import { dispatchCampaign, cancelSchedule } from '../services/campaigns';
+import { deriveCampaignStats } from '../services/stats';
 
 const router = Router();
 router.use(requireAuth);
@@ -150,27 +151,11 @@ router.get('/:id/stats', async (req, res, next) => {
     const byStatus: Record<string, number> = {};
     for (const g of grouped) byStatus[g.status] = g._count._all;
 
-    const total = Object.values(byStatus).reduce((a, b) => a + b, 0);
-    // "Sent" = anything that left our system (SENT/DELIVERED/OPENED).
-    const sent =
-      (byStatus.SENT ?? 0) + (byStatus.DELIVERED ?? 0) + (byStatus.OPENED ?? 0);
-    const delivered = (byStatus.DELIVERED ?? 0) + (byStatus.OPENED ?? 0);
-    const opened = byStatus.OPENED ?? 0;
-
     res.json({
       status: campaign.status,
       scheduledAt: campaign.scheduledAt,
       sentAt: campaign.sentAt,
-      total,
-      sent,
-      delivered,
-      opened,
-      failed: (byStatus.FAILED ?? 0) + (byStatus.BOUNCED ?? 0),
-      pending: byStatus.PENDING ?? 0,
-      rates: {
-        deliveryRate: sent ? Math.round((delivered / sent) * 100) : 0,
-        openRate: delivered ? Math.round((opened / delivered) * 100) : 0,
-      },
+      ...deriveCampaignStats(byStatus),
     });
   } catch (e) {
     next(e);

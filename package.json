@@ -10,6 +10,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "pnpm --filter @dailyx/db generate",
     "db:migrate": "pnpm --filter @dailyx/db migrate",
     "db:push": "pnpm --filter @dailyx/db push",
@@ -21,6 +23,12 @@
   "devDependencies": {
     "turbo": "^2.0.9",
     "typescript": "^5.5.3",
-    "prettier": "^3.3.2"
+    "prettier": "^3.3.2",
+    "vitest": "^2.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "ioredis": "5.10.1"
+    }
   }
 }

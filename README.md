@@ -54,6 +54,17 @@ pnpm dev:web               # http://localhost:3000
 Log in with **demo@dailyx.app / password123**, go to Contacts → Import CSV, and
 pick `mock-data/contacts.csv`.
 
+### Tests
+```bash
+pnpm test          # runs the vitest suite (no DB/Redis/Mailgun needed)
+```
+The suite (43 tests) covers the correctness-critical pure logic: CSV parsing +
+in-file dedup counts (asserted against `mock-data/contacts.csv` → 16 added / 2
+skipped), email/phone normalization (dedup keys), the audience filter→Prisma
+compiler, campaign analytics math, webhook state transitions (opens don't
+downgrade, idempotent counting), Mailgun signature verification, and zod schema
+rules. It runs without any services, so `pnpm test` works in CI on a clean clone.
+
 ### Dry-run without Mailgun
 If Mailgun vars are unset, the API runs in **dry-run**: sends are simulated and
 marked `SENT`, so scheduling and the whole UI still work — you just won't get
@@ -110,6 +121,13 @@ and unmatched flagging), send-now and **queued scheduled** sends that survive
 restart, Mailgun sending + signed webhooks, live-polling analytics, and campaign
 **duplication** (extra credit).
 
+Tested: a `pnpm test` vitest suite (43 tests) covering CSV dedup counts,
+normalization/dedup keys, the audience-filter compiler, analytics math, webhook
+transitions/idempotency, and signature verification — all runnable without
+services. See "Tests" above.
+
 Skipped (with how I'd do them, per the brief): **attachments** — one Mailgun
-multipart field away; per-recipient fan-out for large lists; automated tests for
-the isolation property and CSV dedup counts. See ARCHITECTURE.md §8–9.
+multipart field away; per-recipient fan-out for large lists; **integration**
+tests for the cross-account isolation property (these need a live Postgres — the
+property itself is enforced by `where: { accountId }` on every query, §4). See
+ARCHITECTURE.md §8–9.

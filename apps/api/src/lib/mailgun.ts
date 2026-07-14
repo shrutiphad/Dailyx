@@ -7,6 +7,14 @@ export interface SendResult {
   error?: string;
 }
 
+// Mailgun's send API returns the Message-Id wrapped in angle brackets
+// ("<2025...@domain>"), but the webhook's message.headers.message-id is usually
+// bare. Normalizing both sides through this helper guarantees the webhook can
+// match the recipient row we stored at send time regardless of bracketing.
+export function normalizeMessageId(id: string | null | undefined): string {
+  return (id ?? '').trim().replace(/^<|>$/g, '');
+}
+
 // Send one email via Mailgun's HTTP API using the built-in fetch (Node 20+).
 // Open tracking is enabled with o:tracking-opens=yes; Mailgun injects the pixel.
 export async function sendEmail(params: {
@@ -42,7 +50,7 @@ export async function sendEmail(params: {
     const data = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
     if (!res.ok) return { ok: false, error: data.message || `Mailgun ${res.status}` };
     // Mailgun returns id wrapped in angle brackets, e.g. "<2025...@domain>". Strip them.
-    const providerMessageId = (data.id || '').replace(/^<|>$/g, '');
+    const providerMessageId = normalizeMessageId(data.id);
     return { ok: true, providerMessageId };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'send failed' };

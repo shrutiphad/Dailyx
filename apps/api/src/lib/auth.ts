@@ -16,7 +16,11 @@ export function verifyPassword(plain: string, hash: string): Promise<boolean> {
 }
 
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
+  // JWT_EXPIRES_IN is a config string (e.g. "7d"); @types/jsonwebtoken models the
+  // accepted values as a branded string union, so narrow the plain string to it.
+  return jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+  });
 }
 
 export function verifyToken(token: string): TokenPayload {
