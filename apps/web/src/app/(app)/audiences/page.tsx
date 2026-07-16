@@ -18,6 +18,15 @@ const OPS = [
   { v: 'not_exists', label: 'is not set' },
 ];
 
+// Only offer operators the filter engine actually supports for each field type,
+// so you can't build a dead rule like "tag is X" or "city has tag Y" (which would
+// otherwise be silently dropped). Keep this in sync with shared/filter.ts.
+function opsForField(field: string): string[] {
+  if (field === 'tag') return ['has_tag', 'not_has_tag'];
+  if (field.startsWith('custom:')) return ['eq', 'neq', 'contains', 'exists', 'not_exists'];
+  return ['eq', 'neq', 'contains', 'exists']; // city / name / email
+}
+
 export default function AudiencesPage() {
   const [audiences, setAudiences] = useState<Audience[]>([]);
   const [facets, setFacets] = useState<Facets>({ tags: [], cities: [], customFields: [] });
@@ -57,7 +66,19 @@ export default function AudiencesPage() {
     setModal(a);
   }
   function setRule(i: number, patch: Partial<Rule>) {
-    setFilter((f) => ({ ...f, rules: f.rules.map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
+    setFilter((f) => ({
+      ...f,
+      rules: f.rules.map((r, j) => {
+        if (j !== i) return r;
+        const next = { ...r, ...patch };
+        // Changing the field can invalidate the current operator — snap it back
+        // to a valid default so a tag never keeps an "is" op, etc.
+        if (patch.field && !opsForField(next.field).includes(next.op)) {
+          next.op = opsForField(next.field)[0];
+        }
+        return next;
+      }),
+    }));
   }
   function addRule() {
     setFilter((f) => ({ ...f, rules: [...f.rules, { field: 'city', op: 'eq', value: '' }] }));
@@ -141,7 +162,9 @@ export default function AudiencesPage() {
                 {fieldOptions.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
               </select>
               <select className="input" value={r.op} onChange={(e) => setRule(i, { op: e.target.value })}>
-                {OPS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                {OPS.filter((o) => opsForField(r.field).includes(o.v)).map((o) => (
+                  <option key={o.v} value={o.v}>{o.label}</option>
+                ))}
               </select>
               {!['exists', 'not_exists'].includes(r.op) && (
                 <input className="input" value={r.value ?? ''} placeholder="value" onChange={(e) => setRule(i, { value: e.target.value })} />

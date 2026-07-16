@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compileFilter, type FilterGroup } from './filter';
+import { compileFilter, MATCH_NONE, type FilterGroup } from './filter';
 
 const group = (partial: Partial<FilterGroup>): FilterGroup => ({
   match: 'all',
@@ -8,15 +8,29 @@ const group = (partial: Partial<FilterGroup>): FilterGroup => ({
 });
 
 describe('compileFilter', () => {
-  it('returns an empty where for no rules', () => {
+  it('returns an empty where (everyone) only when there are genuinely no rules', () => {
     expect(compileFilter(group({ rules: [] }))).toEqual({});
   });
 
-  it('ignores unknown fields and empty values (no crash, no clause)', () => {
+  it('matches NOBODY when rules exist but none are usable — never the whole list', () => {
+    // unknown field + an empty tag value → both drop → must not fall back to "everyone"
     const where = compileFilter(
       group({ rules: [{ field: 'zzz', op: 'eq', value: 'x' }, { field: 'tag', op: 'has_tag', value: '' }] }),
     );
-    expect(where).toEqual({});
+    expect(where).toEqual(MATCH_NONE);
+  });
+
+  it('treats `tag is X` as `tag has X` (so a saved eq-on-tag rule still filters)', () => {
+    expect(compileFilter(group({ rules: [{ field: 'tag', op: 'eq', value: 'VIP' }] }))).toEqual({
+      AND: [{ tags: { has: 'vip' } }],
+    });
+    expect(compileFilter(group({ rules: [{ field: 'tag', op: 'neq', value: 'spam' }] }))).toEqual({
+      AND: [{ NOT: { tags: { has: 'spam' } } }],
+    });
+  });
+
+  it('matches nobody for an unsupported field/operator pair (e.g. city has_tag)', () => {
+    expect(compileFilter(group({ rules: [{ field: 'city', op: 'has_tag', value: 'delhi' }] }))).toEqual(MATCH_NONE);
   });
 
   it('wraps multiple clauses in AND for match=all', () => {
