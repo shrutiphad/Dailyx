@@ -18,6 +18,10 @@ const schema = z.object({
   MAILGUN_BASE_URL: z.string().default('https://api.mailgun.net'),
   MAILGUN_FROM: z.string().optional(),
   MAILGUN_WEBHOOK_SIGNING_KEY: z.string().optional(),
+  // When "true"/"1", the API process also runs the BullMQ worker in-process.
+  // Lets a single service handle sends where a separate worker isn't available
+  // (e.g. Render's free tier, which has no free Background Worker type).
+  RUN_WORKER: z.string().optional(),
 });
 
 const parsed = schema.parse(process.env);
@@ -28,6 +32,7 @@ export const env = {
   API_PORT: parsed.PORT ?? parsed.API_PORT,
 };
 export const isProd = env.NODE_ENV === 'production';
+export const runWorker = parsed.RUN_WORKER === 'true' || parsed.RUN_WORKER === '1';
 
 // If Mailgun isn't configured we run in "dry-run" mode: sends are simulated and
 // marked SENT so the rest of the flow (scheduling, analytics UI) still works.
