@@ -1,5 +1,8 @@
 import { Queue } from 'bullmq';
 import { connection } from '../redis';
+import { jobIdForCampaign } from './jobId';
+
+export { jobIdForCampaign };
 
 export interface SendCampaignJob {
   campaignId: string;
@@ -20,11 +23,6 @@ export const campaignQueue = new Queue<SendCampaignJob>(CAMPAIGN_QUEUE, {
     removeOnFail: 5000,
   },
 });
-
-// Deterministic job id per campaign so we can cancel/reschedule idempotently.
-export function jobIdForCampaign(campaignId: string): string {
-  return `campaign:${campaignId}`;
-}
 
 export async function enqueueCampaign(
   data: SendCampaignJob,
