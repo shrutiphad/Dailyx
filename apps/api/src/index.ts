@@ -10,7 +10,6 @@ app.listen(env.API_PORT, () => {
   console.log(`[api] web origin: ${env.WEB_ORIGIN}`);
 });
 
-.
 if (runWorker) {
   console.log('[api] RUN_WORKER=true — starting worker in this process');
   startWorker();
