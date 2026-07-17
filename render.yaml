@@ -14,7 +14,10 @@ services:
     name: dailyx-api
     runtime: node
     plan: free
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/db migrate:deploy && pnpm --filter @dailyx/api build
+    # Install pnpm via npm rather than corepack: Render's image ships a corepack
+    # shim on a read-only path (EROFS on `corepack enable`), and corepack's bundled
+    # signing keys are stale ("Cannot find matching keyid"). npm -g sidesteps both.
+    buildCommand: npm i -g pnpm@9.6.0 && pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/db migrate:deploy && pnpm --filter @dailyx/api build
     startCommand: pnpm --filter @dailyx/api start
     envVars:
       - key: NODE_ENV
@@ -44,7 +47,7 @@ services:
     name: dailyx-worker
     runtime: node
     plan: free
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/api build
+    buildCommand: npm i -g pnpm@9.6.0 && pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/api build
     startCommand: pnpm --filter @dailyx/api start:worker
     envVars:
       - key: NODE_ENV
