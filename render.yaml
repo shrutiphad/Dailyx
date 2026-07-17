@@ -37,6 +37,8 @@ services:
         sync: false
       - key: MAILGUN_WEBHOOK_SIGNING_KEY
         sync: false
+      - key: MAILGUN_BASE_URL
+        value: https://api.mailgun.net   # use https://api.eu.mailgun.net for EU keys
 
   - type: worker
     name: dailyx-worker
@@ -51,9 +53,16 @@ services:
         fromDatabase: { name: dailyx-db, property: connectionString }
       - key: REDIS_URL
         fromService: { name: dailyx-redis, type: redis, property: connectionString }
+      # The worker loads the same env module as the API, which requires JWT_SECRET
+      # even though the worker never verifies tokens — reuse the API's value so
+      # the process doesn't fail config validation on boot.
+      - key: JWT_SECRET
+        fromService: { name: dailyx-api, type: web, envVarKey: JWT_SECRET }
       - key: MAILGUN_API_KEY
         sync: false
       - key: MAILGUN_DOMAIN
         sync: false
       - key: MAILGUN_FROM
         sync: false
+      - key: MAILGUN_BASE_URL
+        value: https://api.mailgun.net   # use https://api.eu.mailgun.net for EU keys
