@@ -10,8 +10,7 @@ app.listen(env.API_PORT, () => {
   console.log(`[api] web origin: ${env.WEB_ORIGIN}`);
 });
 
-// On single-service hosts (e.g. Render free tier) run the worker in-process so
-// scheduled/queued campaigns still send without a separate worker service.
+.
 if (runWorker) {
   console.log('[api] RUN_WORKER=true — starting worker in this process');
   startWorker();
