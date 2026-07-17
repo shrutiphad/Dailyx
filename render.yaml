@@ -14,7 +14,7 @@ services:
     name: dailyx-api
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/db migrate:deploy && pnpm --filter @dailyx/api build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/db migrate:deploy && pnpm --filter @dailyx/api build
     startCommand: pnpm --filter @dailyx/api start
     envVars:
       - key: NODE_ENV
@@ -44,7 +44,7 @@ services:
     name: dailyx-worker
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/api build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @dailyx/db generate && pnpm --filter @dailyx/api build
     startCommand: pnpm --filter @dailyx/api start:worker
     envVars:
       - key: NODE_ENV
