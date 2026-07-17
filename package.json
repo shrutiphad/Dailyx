@@ -16,6 +16,7 @@
     "db:migrate": "pnpm --filter @dailyx/db migrate",
     "db:push": "pnpm --filter @dailyx/db push",
     "db:seed": "pnpm --filter @dailyx/db seed",
+    "db:seed:demo": "pnpm --filter @dailyx/db seed:demo",
     "dev:api": "pnpm --filter @dailyx/api dev",
     "dev:worker": "pnpm --filter @dailyx/api dev:worker",
     "dev:web": "pnpm --filter @dailyx/web dev"

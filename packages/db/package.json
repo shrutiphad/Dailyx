@@ -11,12 +11,14 @@
     "push": "prisma db push",
     "studio": "prisma studio",
     "seed": "tsx src/seed.ts",
+    "seed:demo": "tsx src/seed-demo.ts",
     "typecheck": "tsc --noEmit"
   },
   "prisma": {
     "seed": "tsx src/seed.ts"
   },
   "dependencies": {
+    "@dailyx/shared": "workspace:*",
     "@prisma/client": "^5.18.0",
     "bcryptjs": "^2.4.3"
   },
