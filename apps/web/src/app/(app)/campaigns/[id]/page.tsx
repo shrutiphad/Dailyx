@@ -1,8 +1,14 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
-import { Stat, StatusBadge, Badge, RateBar } from '@/components/ui';
+import { api, ApiError } from '@/lib/api';
+import { Stat, StatusBadge, Badge, RateBar, Modal } from '@/components/ui';
+
+// Format a Date as the value a <input type="datetime-local"> expects (local tz).
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 interface Stats {
   status: string;
@@ -25,6 +31,10 @@ export default function CampaignDetail() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [reschedOpen, setReschedOpen] = useState(false);
+  const [reschedAt, setReschedAt] = useState('');
+  const [reschedBusy, setReschedBusy] = useState(false);
+  const [reschedErr, setReschedErr] = useState('');
 
   const loadStats = useCallback(async () => {
     const [s, r] = await Promise.all([
@@ -52,6 +62,40 @@ export default function CampaignDetail() {
     router.push(`/campaigns/${res.campaign.id}`);
   }
 
+  function openReschedule() {
+    // Default to one hour from now, in the picker's local format.
+    setReschedAt(toLocalInput(new Date(Date.now() + 60 * 60 * 1000)));
+    setReschedErr('');
+    setReschedOpen(true);
+  }
+
+  // Resend with the same content/recipients at a new time. Reuses the existing
+  // duplicate + send endpoints: makes a fresh scheduled copy so the original
+  // campaign's history/analytics stay untouched. No backend changes.
+  async function rescheduleResend() {
+    setReschedErr('');
+    const when = new Date(reschedAt);
+    if (!reschedAt || Number.isNaN(when.getTime())) {
+      setReschedErr('Pick a date and time.');
+      return;
+    }
+    if (when.getTime() < Date.now() + 60 * 1000) {
+      setReschedErr('Choose a time at least a minute from now.');
+      return;
+    }
+    setReschedBusy(true);
+    try {
+      const copy = await api.post<{ campaign: { id: string } }>(`/api/campaigns/${id}/duplicate`);
+      await api.post(`/api/campaigns/${copy.campaign.id}/send`, { scheduledAt: when.toISOString() });
+      setReschedOpen(false);
+      router.push(`/campaigns/${copy.campaign.id}`);
+    } catch (err) {
+      setReschedErr(err instanceof ApiError ? err.message : 'Could not reschedule.');
+    } finally {
+      setReschedBusy(false);
+    }
+  }
+
   if (!campaign || !stats) return <div className="text-ink-500">Loading…</div>;
 
   return (
@@ -67,9 +111,15 @@ export default function CampaignDetail() {
             <p className="mt-1 text-sm text-warning">Scheduled for {new Date(stats.scheduledAt).toLocaleString()}</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {stats.status === 'SCHEDULED' && <button className="btn-danger" onClick={cancel}>Cancel schedule</button>}
           <button className="btn-ghost" onClick={duplicate}>Duplicate</button>
+          <button className="btn-primary" onClick={openReschedule}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 8v4l3 2" />
+            </svg>
+            Reschedule &amp; resend
+          </button>
         </div>
       </div>
 
@@ -122,6 +172,27 @@ export default function CampaignDetail() {
           </div>
         </div>
       </div>
+
+      <Modal open={reschedOpen} onClose={() => setReschedOpen(false)} title="Reschedule & resend">
+        <p className="mb-4 text-sm text-ink-500">
+          Schedules a fresh copy of <span className="font-medium text-ink-700">{campaign.name}</span> with the
+          same subject, body and recipients. The original campaign and its analytics stay untouched.
+        </p>
+        {reschedErr && <div className="mb-3 rounded-lg bg-red-50 p-2 text-sm text-danger">{reschedErr}</div>}
+        <label className="label">Send date &amp; time</label>
+        <input
+          type="datetime-local"
+          className="input"
+          value={reschedAt}
+          onChange={(e) => setReschedAt(e.target.value)}
+        />
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="btn-ghost" onClick={() => setReschedOpen(false)}>Cancel</button>
+          <button className="btn-primary" disabled={reschedBusy} onClick={rescheduleResend}>
+            {reschedBusy ? 'Scheduling…' : 'Schedule & resend'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
