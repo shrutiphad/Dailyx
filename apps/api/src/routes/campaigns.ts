@@ -7,6 +7,7 @@ import { HttpError } from '../middleware/error';
 import { matchManualEntries } from '../services/recipients';
 import { dispatchCampaign, cancelSchedule } from '../services/campaigns';
 import { deriveCampaignStats } from '../services/stats';
+import { cancelCampaignJob } from '../queue';
 
 const router = Router();
 router.use(requireAuth);
@@ -117,6 +118,22 @@ router.post('/:id/send', async (req, res, next) => {
 router.post('/:id/cancel', async (req, res, next) => {
   try {
     await cancelSchedule(req.params.id, accountId(req));
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Delete a campaign entirely. Cascades to recipients, events and attachments
+// (FK onDelete: Cascade). Removes any pending queue job first so a deleted
+// campaign can never fire a send.
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const acc = accountId(req);
+    const campaign = await prisma.campaign.findFirst({ where: { id: req.params.id, accountId: acc } });
+    if (!campaign) throw new HttpError(404, 'Campaign not found');
+    await cancelCampaignJob(campaign.id).catch(() => undefined);
+    await prisma.campaign.delete({ where: { id: campaign.id } });
     res.json({ ok: true });
   } catch (e) {
     next(e);

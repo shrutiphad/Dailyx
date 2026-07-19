@@ -104,6 +104,13 @@ export default function CampaignDetail() {
     router.push(`/campaigns/${res.campaign.id}`);
   }
 
+  async function remove() {
+    if (!campaign) return;
+    if (!confirm(`Delete "${campaign.name}"? This also removes its recipients and analytics. This can't be undone.`)) return;
+    await api.del(`/api/campaigns/${id}`);
+    router.push('/campaigns');
+  }
+
   function openReschedule() {
     // Default to one hour from now, in the picker's local format.
     setReschedAt(toLocalInput(new Date(Date.now() + 60 * 60 * 1000)));
@@ -162,6 +169,7 @@ export default function CampaignDetail() {
             </svg>
             Reschedule &amp; Resend
           </button>
+          <button className="btn-danger" onClick={remove}>Delete</button>
         </div>
       </div>
 

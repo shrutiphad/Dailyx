@@ -31,6 +31,12 @@ export default function CampaignsPage() {
     router.push(`/campaigns/${res.campaign.id}`);
   }
 
+  async function remove(id: string, name: string) {
+    if (!confirm(`Delete "${name}"? This also removes its recipients and analytics. This can't be undone.`)) return;
+    await api.del(`/api/campaigns/${id}`);
+    load();
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -68,7 +74,8 @@ export default function CampaignsPage() {
                       : '—'}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <button className="text-brand-600" onClick={() => duplicate(c.id)}>Duplicate</button>
+                    <button className="mr-3 text-brand-600" onClick={() => duplicate(c.id)}>Duplicate</button>
+                    <button className="text-danger" onClick={() => remove(c.id, c.name)}>Delete</button>
                   </td>
                 </tr>
               ))}
