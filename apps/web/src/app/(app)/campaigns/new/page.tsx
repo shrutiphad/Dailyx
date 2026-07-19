@@ -8,6 +8,12 @@ interface Audience { id: string; name: string; count: number }
 interface Facets { tags: string[] }
 interface MatchResult { recipients: { email: string; name: string | null }[]; unmatched: string[] }
 
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default function NewCampaignPage() {
   const router = useRouter();
   const [audiences, setAudiences] = useState<Audience[]>([]);
@@ -20,8 +26,17 @@ export default function NewCampaignPage() {
   const [match, setMatch] = useState<MatchResult | null>(null);
   const [when, setWhen] = useState<'now' | 'later'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+    e.target.value = '';
+  }
+  function removeFile(i: number) {
+    setFiles((prev) => prev.filter((_, j) => j !== i));
+  }
 
   useEffect(() => {
     api.get<{ audiences: Audience[] }>('/api/audiences').then((r) => {
@@ -62,6 +77,12 @@ export default function NewCampaignPage() {
         manualEntries: source === 'MANUAL' ? manualEntries : [],
         scheduledAt: iso,
       });
+      // Upload any attachments to the freshly-created campaign before sending.
+      for (const f of files) {
+        const fd = new FormData();
+        fd.append('file', f);
+        await api.upload(`/api/campaigns/${created.campaign.id}/attachments`, fd);
+      }
       await api.post(`/api/campaigns/${created.campaign.id}/send`, { scheduledAt: iso });
       router.push(`/campaigns/${created.campaign.id}`);
     } catch (err) {

@@ -81,6 +81,14 @@ export async function processCampaignSend(campaignId: string, accountId: string)
 
   await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'SENDING' } });
 
+  // Load attachments once (bytes are the same for every recipient).
+  const attachmentRows = await prisma.campaignAttachment.findMany({ where: { campaignId } });
+  const attachments = attachmentRows.map((a) => ({
+    filename: a.filename,
+    contentType: a.contentType,
+    data: Buffer.from(a.data),
+  }));
+
   // Only send to recipients still PENDING → safe to retry the job.
   const pending = await prisma.campaignRecipient.findMany({
     where: { campaignId, status: 'PENDING' },
@@ -91,6 +99,7 @@ export async function processCampaignSend(campaignId: string, accountId: string)
       to: r.email,
       subject: campaign.subject,
       html: campaign.body,
+      attachments,
     });
     if (result.ok) {
       await prisma.campaignRecipient.update({

@@ -15,38 +15,61 @@ export function normalizeMessageId(id: string | null | undefined): string {
   return (id ?? '').trim().replace(/^<|>$/g, '');
 }
 
+export interface EmailAttachment {
+  filename: string;
+  contentType: string;
+  data: Buffer;
+}
+
 // Send one email via Mailgun's HTTP API using the built-in fetch (Node 20+).
 // Open tracking is enabled with o:tracking-opens=yes; Mailgun injects the pixel.
+// When attachments are present we switch to multipart/form-data (Mailgun's
+// `attachment` field, repeatable); otherwise the plain urlencoded path is used.
 export async function sendEmail(params: {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }): Promise<SendResult> {
   if (!mailgunConfigured) {
     // Dry-run: pretend it sent so scheduling/analytics flow can be demoed without keys.
     return { ok: true, providerMessageId: `dryrun-${Date.now()}-${Math.random().toString(36).slice(2)}` };
   }
 
-  const form = new URLSearchParams();
-  form.set('from', env.MAILGUN_FROM!);
-  form.set('to', params.to);
-  form.set('subject', params.subject);
-  form.set('html', params.html);
-  form.set('o:tracking', 'yes');
-  form.set('o:tracking-opens', 'yes');
-
   const url = `${env.MAILGUN_BASE_URL}/v3/${env.MAILGUN_DOMAIN}/messages`;
   const auth = Buffer.from(`api:${env.MAILGUN_API_KEY}`).toString('base64');
+  const attachments = params.attachments ?? [];
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: form.toString(),
-    });
+    let res: Response;
+    if (attachments.length > 0) {
+      // multipart — required to carry file bytes. Don't set Content-Type; fetch
+      // adds the multipart boundary automatically for a FormData body.
+      const form = new FormData();
+      form.append('from', env.MAILGUN_FROM!);
+      form.append('to', params.to);
+      form.append('subject', params.subject);
+      form.append('html', params.html);
+      form.append('o:tracking', 'yes');
+      form.append('o:tracking-opens', 'yes');
+      for (const a of attachments) {
+        form.append('attachment', new Blob([a.data], { type: a.contentType }), a.filename);
+      }
+      res = await fetch(url, { method: 'POST', headers: { Authorization: `Basic ${auth}` }, body: form });
+    } else {
+      const form = new URLSearchParams();
+      form.set('from', env.MAILGUN_FROM!);
+      form.set('to', params.to);
+      form.set('subject', params.subject);
+      form.set('html', params.html);
+      form.set('o:tracking', 'yes');
+      form.set('o:tracking-opens', 'yes');
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString(),
+      });
+    }
     const data = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
     if (!res.ok) return { ok: false, error: data.message || `Mailgun ${res.status}` };
     // Mailgun returns id wrapped in angle brackets, e.g. "<2025...@domain>". Strip them.

@@ -83,7 +83,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </span>
       <span className="leading-tight">
         <span className="block text-[15px] font-bold tracking-tight text-ink-900">DailyX</span>
-        <span className="block text-[11px] font-medium text-ink-500">by Olio · Global adtech</span>
+        <span className="block text-[11px] font-medium text-ink-500">by Olio · Global AdTech</span>
       </span>
     </Link>
   );

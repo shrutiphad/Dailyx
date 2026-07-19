@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { prisma } from '@dailyx/db';
 import { campaignSchema } from '@dailyx/shared';
 import { requireAuth, accountId } from '../middleware/auth';
@@ -9,6 +10,10 @@ import { deriveCampaignStats } from '../services/stats';
 
 const router = Router();
 router.use(requireAuth);
+
+// Attachments are held in memory then stored as bytes; cap at 10MB (Mailgun's
+// message size limit is ~25MB total, so this is a safe per-file ceiling).
+const uploadAttachment = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.get('/', async (req, res, next) => {
   try {
@@ -71,7 +76,14 @@ router.get('/:id', async (req, res, next) => {
   try {
     const campaign = await prisma.campaign.findFirst({
       where: { id: req.params.id, accountId: accountId(req) },
-      include: { audience: { select: { name: true } } },
+      include: {
+        audience: { select: { name: true } },
+        // metadata only — never ship the file bytes in the campaign payload
+        attachments: {
+          select: { id: true, filename: true, contentType: true, size: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
     if (!campaign) throw new HttpError(404, 'Campaign not found');
     res.json({ campaign });
@@ -130,6 +142,20 @@ router.post('/:id/duplicate', async (req, res, next) => {
         status: 'DRAFT',
       },
     });
+    // Carry the attachments over too, so a duplicate is truly send-ready.
+    const srcAttachments = await prisma.campaignAttachment.findMany({ where: { campaignId: src.id } });
+    if (srcAttachments.length > 0) {
+      await prisma.campaignAttachment.createMany({
+        data: srcAttachments.map((a) => ({
+          accountId: acc,
+          campaignId: copy.id,
+          filename: a.filename,
+          contentType: a.contentType,
+          size: a.size,
+          data: a.data,
+        })),
+      });
+    }
     res.status(201).json({ campaign: copy });
   } catch (e) {
     next(e);
@@ -173,6 +199,86 @@ router.get('/:id/recipients', async (req, res, next) => {
       take: 1000,
     });
     res.json({ recipients });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ── Attachments ────────────────────────────────────────────────────────────
+// Ensure the campaign belongs to the caller (tenant isolation) before touching
+// its attachments; returns the campaign or throws 404.
+async function ownedCampaign(req: import('express').Request) {
+  const campaign = await prisma.campaign.findFirst({
+    where: { id: req.params.id, accountId: accountId(req) },
+  });
+  if (!campaign) throw new HttpError(404, 'Campaign not found');
+  return campaign;
+}
+
+router.get('/:id/attachments', async (req, res, next) => {
+  try {
+    await ownedCampaign(req);
+    const attachments = await prisma.campaignAttachment.findMany({
+      where: { campaignId: req.params.id },
+      select: { id: true, filename: true, contentType: true, size: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ attachments });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/:id/attachments', uploadAttachment.single('file'), async (req, res, next) => {
+  try {
+    const acc = accountId(req);
+    const campaign = await ownedCampaign(req);
+    // Only editable while the campaign hasn't gone out yet.
+    if (!['DRAFT', 'SCHEDULED', 'CANCELED', 'FAILED'].includes(campaign.status)) {
+      throw new HttpError(409, `Can't change attachments on a ${campaign.status.toLowerCase()} campaign`);
+    }
+    if (!req.file) throw new HttpError(400, 'No file uploaded (field name: file)');
+
+    const attachment = await prisma.campaignAttachment.create({
+      data: {
+        accountId: acc,
+        campaignId: campaign.id,
+        filename: req.file.originalname,
+        contentType: req.file.mimetype || 'application/octet-stream',
+        size: req.file.size,
+        data: req.file.buffer,
+      },
+      select: { id: true, filename: true, contentType: true, size: true, createdAt: true },
+    });
+    res.status(201).json({ attachment });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete('/:id/attachments/:attId', async (req, res, next) => {
+  try {
+    await ownedCampaign(req); // 404s if the campaign isn't the caller's
+    const result = await prisma.campaignAttachment.deleteMany({
+      where: { id: req.params.attId, campaignId: req.params.id },
+    });
+    if (result.count === 0) throw new HttpError(404, 'Attachment not found');
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/:id/attachments/:attId/download', async (req, res, next) => {
+  try {
+    await ownedCampaign(req);
+    const attachment = await prisma.campaignAttachment.findFirst({
+      where: { id: req.params.attId, campaignId: req.params.id },
+    });
+    if (!attachment) throw new HttpError(404, 'Attachment not found');
+    res.setHeader('Content-Type', attachment.contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${attachment.filename.replace(/"/g, '')}"`);
+    res.send(Buffer.from(attachment.data));
   } catch (e) {
     next(e);
   }

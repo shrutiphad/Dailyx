@@ -159,10 +159,28 @@ model Campaign {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  recipients CampaignRecipient[]
+  recipients  CampaignRecipient[]
+  attachments CampaignAttachment[]
 
   @@index([accountId])
   @@index([status, scheduledAt])
+}
+
+// A file (e.g. a PDF) attached to a campaign's outgoing email. Bytes live in a
+// dedicated table (not on Campaign) so listing campaigns never drags file data.
+model CampaignAttachment {
+  id          String   @id @default(cuid())
+  accountId   String   // denormalized for tenant-scoped queries
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  filename    String
+  contentType String
+  size        Int
+  data        Bytes
+  createdAt   DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([accountId])
 }
 
 enum RecipientStatus {
