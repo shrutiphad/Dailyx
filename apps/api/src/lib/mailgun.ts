@@ -53,7 +53,8 @@ export async function sendEmail(params: {
       form.append('o:tracking', 'yes');
       form.append('o:tracking-opens', 'yes');
       for (const a of attachments) {
-        form.append('attachment', new Blob([a.data], { type: a.contentType }), a.filename);
+        // Wrap the Buffer in a Uint8Array — a valid BlobPart across TS lib types.
+        form.append('attachment', new Blob([new Uint8Array(a.data)], { type: a.contentType }), a.filename);
       }
       res = await fetch(url, { method: 'POST', headers: { Authorization: `Basic ${auth}` }, body: form });
     } else {

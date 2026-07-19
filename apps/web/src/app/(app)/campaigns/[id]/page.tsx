@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { Stat, StatusBadge, Badge, RateBar, Modal } from '@/components/ui';
@@ -9,6 +9,15 @@ function toLocalInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// Statuses where attachments may still be added/removed (not yet sent).
+const EDITABLE = new Set(['DRAFT', 'SCHEDULED', 'CANCELED', 'FAILED']);
 
 interface Stats {
   status: string;
@@ -22,7 +31,8 @@ interface Stats {
   pending: number;
   rates: { deliveryRate: number; openRate: number };
 }
-interface Campaign { id: string; name: string; subject: string; body: string; status: string }
+interface Attachment { id: string; filename: string; contentType: string; size: number; createdAt: string }
+interface Campaign { id: string; name: string; subject: string; body: string; status: string; attachments?: Attachment[] }
 interface Recipient { id: string; email: string; name: string | null; status: string; openCount: number }
 
 export default function CampaignDetail() {
@@ -35,6 +45,12 @@ export default function CampaignDetail() {
   const [reschedAt, setReschedAt] = useState('');
   const [reschedBusy, setReschedBusy] = useState(false);
   const [reschedErr, setReschedErr] = useState('');
+  const [attachErr, setAttachErr] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadCampaign = useCallback(() => {
+    return api.get<{ campaign: Campaign }>(`/api/campaigns/${id}`).then((r) => setCampaign(r.campaign));
+  }, [id]);
 
   const loadStats = useCallback(async () => {
     const [s, r] = await Promise.all([
@@ -46,12 +62,38 @@ export default function CampaignDetail() {
   }, [id]);
 
   useEffect(() => {
-    api.get<{ campaign: Campaign }>(`/api/campaigns/${id}`).then((r) => setCampaign(r.campaign));
+    loadCampaign();
     loadStats();
     // Poll every 4s so delivered/opened tick up without a manual refresh.
     const t = setInterval(loadStats, 4000);
     return () => clearInterval(t);
-  }, [id, loadStats]);
+  }, [id, loadStats, loadCampaign]);
+
+  async function onAddAttachment(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAttachErr('');
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      await api.upload(`/api/campaigns/${id}/attachments`, fd);
+      await loadCampaign();
+    } catch (err) {
+      setAttachErr(err instanceof ApiError ? err.message : 'Upload failed.');
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function removeAttachment(attId: string) {
+    setAttachErr('');
+    try {
+      await api.del(`/api/campaigns/${id}/attachments/${attId}`);
+      await loadCampaign();
+    } catch (err) {
+      setAttachErr(err instanceof ApiError ? err.message : 'Could not remove attachment.');
+    }
+  }
 
   async function cancel() {
     await api.post(`/api/campaigns/${id}/cancel`);
@@ -172,6 +214,55 @@ export default function CampaignDetail() {
           </div>
         </div>
       </div>
+
+      {(() => {
+        const attachments = campaign.attachments ?? [];
+        const editable = EDITABLE.has(stats.status);
+        if (attachments.length === 0 && !editable) return null;
+        return (
+          <div className="card mt-6 p-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-sm font-medium text-ink-700">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 1 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.48-8.49" />
+                </svg>
+                Attachments ({attachments.length})
+              </h2>
+              {editable && (
+                <>
+                  <input ref={fileRef} type="file" className="hidden" onChange={onAddAttachment} />
+                  <button className="btn-ghost" onClick={() => fileRef.current?.click()}>Add file</button>
+                </>
+              )}
+            </div>
+            {attachErr && <div className="mb-3 rounded-lg bg-red-50 p-2 text-sm text-danger">{attachErr}</div>}
+            {attachments.length === 0 ? (
+              <p className="text-sm text-ink-500">No attachments yet — add a PDF or file to send with this email.</p>
+            ) : (
+              <ul className="space-y-2">
+                {attachments.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-3 rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-600">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+                        </svg>
+                      </span>
+                      <span className="truncate font-medium text-ink-800">{a.filename}</span>
+                      <span className="shrink-0 text-ink-400">{fmtBytes(a.size)}</span>
+                    </span>
+                    {editable && (
+                      <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.filename}`} className="shrink-0 rounded p-1 text-ink-400 transition-colors hover:bg-red-50 hover:text-danger">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })()}
 
       <Modal open={reschedOpen} onClose={() => setReschedOpen(false)} title="Reschedule & resend">
         <p className="mb-4 text-sm text-ink-500">

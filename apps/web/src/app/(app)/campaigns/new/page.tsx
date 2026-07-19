@@ -157,6 +157,38 @@ export default function NewCampaignPage() {
         )}
       </div>
 
+      <div className="card mt-4 space-y-3 p-6">
+        <div className="text-sm font-medium text-ink-700">
+          Attachments <span className="font-normal text-ink-400">(optional — e.g. a PDF)</span>
+        </div>
+        <input
+          type="file"
+          multiple
+          onChange={onPickFiles}
+          className="block w-full text-sm text-ink-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border file:border-ink-200 file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink-700 hover:file:bg-ink-100"
+        />
+        {files.length > 0 && (
+          <ul className="space-y-2">
+            {files.map((f, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-sm">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-600">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+                    </svg>
+                  </span>
+                  <span className="truncate font-medium text-ink-800">{f.name}</span>
+                  <span className="shrink-0 text-ink-400">{fmtBytes(f.size)}</span>
+                </span>
+                <button onClick={() => removeFile(i)} aria-label={`Remove ${f.name}`} className="shrink-0 rounded p-1 text-ink-400 transition-colors hover:bg-red-50 hover:text-danger">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="card mt-4 space-y-4 p-6">
         <div className="text-sm font-medium text-ink-700">When to send</div>
         <div className="flex gap-2">
