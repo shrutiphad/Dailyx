@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Stat, StatusBadge, Badge } from '@/components/ui';
+import { Stat, StatusBadge, Badge, RateBar } from '@/components/ui';
 
 interface Stats {
   status: string;
@@ -74,10 +74,20 @@ export default function CampaignDetail() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Recipients" value={stats.total} />
+        <Stat label="Recipients" value={stats.total} hint={stats.failed ? `${stats.failed} failed` : 'in this campaign'} />
         <Stat label="Sent" value={stats.sent} hint={`${stats.pending} pending`} />
-        <Stat label="Delivered" value={stats.delivered} hint={`${stats.rates.deliveryRate}% of sent`} />
-        <Stat label="Opened" value={stats.opened} hint={`${stats.rates.openRate}% of delivered`} />
+        <Stat
+          label="Delivered"
+          value={stats.delivered}
+          hint={`${stats.rates.deliveryRate}% of sent`}
+          foot={<RateBar value={stats.rates.deliveryRate} tone="success" />}
+        />
+        <Stat
+          label="Opened"
+          value={stats.opened}
+          hint={`${stats.rates.openRate}% of delivered`}
+          foot={<RateBar value={stats.rates.openRate} tone="brand" />}
+        />
       </div>
 
       <div className="mt-3 flex items-center gap-2 text-xs text-ink-500">

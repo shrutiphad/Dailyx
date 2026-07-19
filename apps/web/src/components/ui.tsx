@@ -48,12 +48,38 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+export function Stat({
+  label,
+  value,
+  hint,
+  foot,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: string;
+  foot?: ReactNode;
+}) {
   return (
     <div className="card p-5 transition-shadow hover:shadow-card-hover">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">{label}</div>
       <div className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-ink-900">{value}</div>
       {hint && <div className="mt-1.5 text-xs text-ink-500">{hint}</div>}
+      {foot}
+    </div>
+  );
+}
+
+// Slim animated progress bar for rates (delivery / open %).
+export function RateBar({ value, tone = 'brand' }: { value: number; tone?: 'brand' | 'success' | 'warning' }) {
+  const fills: Record<string, string> = {
+    brand: 'bg-brand-500',
+    success: 'bg-success',
+    warning: 'bg-warning',
+  };
+  const pct = Math.min(100, Math.max(0, value));
+  return (
+    <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <div className={`h-full rounded-full ${fills[tone]} transition-[width] duration-700 ease-out`} style={{ width: `${pct}%` }} />
     </div>
   );
 }
