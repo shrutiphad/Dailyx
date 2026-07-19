@@ -87,14 +87,14 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50 p-4 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-ink-200 bg-white p-6 shadow-popover animate-scale-in"
+        className="w-full max-w-lg rounded-xl border border-ink-200 bg-surface p-6 shadow-popover animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-start justify-between gap-4">

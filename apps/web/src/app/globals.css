@@ -2,8 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Palette (channel triplets, consumed by tailwind.config token()) ──────────
+   Light is the default; `.dark` (set on <html>) redefines the same names.       */
 :root {
   color-scheme: light;
+
+  --canvas: 246 247 251;
+  --surface: 255 255 255;
+  --surface-2: 248 250 252;
+
+  --ink-900: 15 23 42;
+  --ink-800: 30 41 59;
+  --ink-700: 51 65 85;
+  --ink-600: 71 85 105;
+  --ink-500: 100 116 139;
+  --ink-400: 148 163 184;
+  --ink-300: 203 213 225;
+  --ink-200: 226 232 240;
+  --ink-100: 241 245 249;
+  --ink-50: 248 250 252;
+
+  --brand-50: 238 242 255;
+  --brand-100: 224 231 255;
+  --brand-200: 199 210 254;
+  --brand-300: 165 180 252;
+  --brand-400: 129 140 248;
+  --brand-500: 99 102 241;
+  --brand-600: 79 70 229;
+  --brand-700: 67 56 202;
+  --brand-800: 55 48 163;
+
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+  --red-50: 254 242 242;
+  --red-200: 254 202 202;
+  --green-50: 240 253 244;
+  --green-200: 187 247 208;
+  --amber-50: 255 251 235;
+  --amber-200: 253 230 138;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --canvas: 12 15 23;      /* page — darkest, so cards lift off it */
+  --surface: 24 30 44;     /* cards / inputs / modals */
+  --surface-2: 32 39 55;   /* subtle raised (thead, hover) */
+
+  /* neutrals invert: text becomes light, "light" bg steps become dark */
+  --ink-900: 237 242 249;
+  --ink-800: 224 231 240;
+  --ink-700: 199 208 224;
+  --ink-600: 156 168 189;
+  --ink-500: 138 150 172;
+  --ink-400: 110 122 145;
+  --ink-300: 61 72 95;
+  --ink-200: 45 54 74;
+  --ink-100: 38 46 64;
+  --ink-50: 32 39 55;
+
+  /* indigo: keep 500/600 vivid for buttons; washes go dark, text steps go light */
+  --brand-50: 42 41 82;
+  --brand-100: 51 49 100;
+  --brand-200: 67 63 130;
+  --brand-300: 129 140 248;
+  --brand-400: 129 140 248;
+  --brand-500: 129 140 248;
+  --brand-600: 99 102 241;
+  --brand-700: 179 190 253;
+  --brand-800: 199 210 254;
+
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+  --red-50: 62 33 33;
+  --red-200: 96 47 47;
+  --green-50: 22 49 35;
+  --green-200: 33 74 52;
+  --amber-50: 52 41 20;
+  --amber-200: 92 70 30;
 }
 
 body {
@@ -11,18 +89,18 @@ body {
   font-feature-settings: 'cv02', 'cv03', 'cv04';
 }
 
-/* Consistent, visible keyboard focus everywhere (accessibility). */
 @layer base {
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500/60 ring-offset-2 ring-offset-white;
+    @apply outline-none ring-2 ring-brand-500/60 ring-offset-2;
+    --tw-ring-offset-color: rgb(var(--canvas));
   }
   h1 { @apply tracking-[-0.02em]; }
   h2, h3 { @apply tracking-[-0.01em]; }
   ::selection { @apply bg-brand-100 text-brand-800; }
 }
 
-/* Reusable component classes built from tokens (design-system layer).
-   Class NAMES are unchanged — pages depend on them — only the styling improved. */
+/* Reusable component classes — class NAMES unchanged (pages depend on them);
+   backgrounds moved from literal white → the `surface` token so they theme. */
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
@@ -34,83 +112,59 @@ body {
            disabled:hover:bg-brand-600;
   }
   .btn-ghost {
-    @apply btn border border-ink-200 bg-white text-ink-700 shadow-btn
+    @apply btn border border-ink-200 bg-surface text-ink-700 shadow-btn
            hover:border-ink-300 hover:bg-ink-50 hover:text-ink-900;
   }
   .btn-danger {
-    @apply btn border border-ink-200 bg-white text-danger shadow-btn
+    @apply btn border border-ink-200 bg-surface text-danger shadow-btn
            hover:border-danger/30 hover:bg-red-50;
   }
 
   .input {
-    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900
+    @apply w-full rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-900
            shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)] transition
            placeholder:text-ink-400
            hover:border-ink-300
            focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10;
   }
-  select.input {
-    @apply cursor-pointer pr-8;
-  }
-  .label {
-    @apply mb-1.5 block text-[13px] font-medium text-ink-700;
-  }
+  select.input { @apply cursor-pointer pr-8; }
+  .label { @apply mb-1.5 block text-[13px] font-medium text-ink-700; }
 
-  .card {
-    @apply rounded-xl border border-ink-200 bg-white shadow-card;
-  }
+  .card { @apply rounded-xl border border-ink-200 bg-surface shadow-card; }
 
-  /* Tables live inside `.card` across the app — styling them here upgrades
-     every existing table without touching a single page file. */
-  .card table {
-    @apply w-full border-collapse;
-  }
-  .card table thead {
-    @apply bg-ink-50;
-  }
+  /* Tables live inside `.card` app-wide — styled here so every table upgrades
+     (and themes) without touching page files. */
+  .card table { @apply w-full border-collapse; }
+  .card table thead { @apply bg-surface-2; }
   .card table thead th {
     @apply whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-ink-500;
   }
-  .card table tbody tr {
-    @apply border-t border-ink-200/70 transition-colors;
-  }
-  .card table tbody tr:hover {
-    @apply bg-ink-50/70;
-  }
-  .card table tbody td {
-    @apply px-4 py-3 align-middle;
-  }
-  /* Row action links (Edit / Delete / Duplicate) read as buttons on hover. */
+  .card table tbody tr { @apply border-t border-ink-200/70 transition-colors; }
+  .card table tbody tr:hover { @apply bg-ink-50/60; }
+  .card table tbody td { @apply px-4 py-3 align-middle; }
   .card table tbody td button,
   .card table tbody td a {
     @apply rounded font-medium transition-colors hover:underline underline-offset-2;
   }
 }
 
-/* Slim, unobtrusive scrollbars for overflow areas. */
 @layer utilities {
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
+  .tabular { font-variant-numeric: tabular-nums; }
 }
 
+/* Slim, theme-aware scrollbars (rgb(var()) — no <alpha-value> in raw CSS). */
 * {
   scrollbar-width: thin;
-  scrollbar-color: theme('colors.ink.300') transparent;
+  scrollbar-color: rgb(var(--ink-300)) transparent;
 }
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb {
-  background-color: theme('colors.ink.300');
+  background-color: rgb(var(--ink-300));
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: 9999px;
 }
-*::-webkit-scrollbar-thumb:hover {
-  background-color: theme('colors.ink.400');
-}
+*::-webkit-scrollbar-thumb:hover { background-color: rgb(var(--ink-400)); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

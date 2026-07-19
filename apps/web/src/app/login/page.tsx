@@ -31,7 +31,7 @@ export default function LoginPage() {
       {/* soft brand wash behind the card */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,theme(colors.brand.100)_0%,transparent_70%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgb(var(--brand-100))_0%,transparent_70%)]"
       />
       <form onSubmit={submit} className="card relative w-full max-w-sm p-8">
         <span className="mb-5 grid h-11 w-11 place-items-center rounded-xl bg-brand-600 text-white shadow-btn">
